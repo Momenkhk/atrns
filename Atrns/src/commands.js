@@ -113,6 +113,10 @@ const commands = [
     .setDescription('عرض الاختصارات')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
+  new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('عرض دليل الأوامر (Slash + Prefix)'),
+
   new SlashCommandBuilder().setName('server-info').setDescription('معلومات السيرفر'),
   new SlashCommandBuilder().setName('user-info').setDescription('معلومات عضو').addUserOption((opt) => opt.setName('user').setRequired(true).setDescription('العضو')),
 
@@ -209,6 +213,12 @@ const commands = [
     .addChannelOption((opt) => opt.setName('channel').setDescription('قناة لوقات الحماية').setRequired(true)),
 
   new SlashCommandBuilder()
+    .setName('setup-owner-alerts')
+    .setDescription('تشغيل/إيقاف تنبيهات DM لمالك السيرفر')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addBooleanOption((opt) => opt.setName('enabled').setDescription('تشغيل التنبيهات').setRequired(true)),
+
+  new SlashCommandBuilder()
     .setName('setup-suggestions')
     .setDescription('تحديد قناة الاقتراحات')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -252,9 +262,41 @@ const commands = [
     .addUserOption((opt) => opt.setName('user').setDescription('العضو').setRequired(false)),
 
   new SlashCommandBuilder()
+    .setName('levels-top')
+    .setDescription('عرض أعلى الأعضاء في اللفلات'),
+
+  new SlashCommandBuilder()
     .setName('suggest')
     .setDescription('إرسال اقتراح')
     .addStringOption((opt) => opt.setName('text').setDescription('الاقتراح').setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName('suggest-panel')
+    .setDescription('إرسال بنل للاقتراحات')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
+  new SlashCommandBuilder()
+    .setName('protection-status')
+    .setDescription('عرض حالة أنظمة الحماية')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
+  new SlashCommandBuilder()
+    .setName('protection-panel')
+    .setDescription('إرسال بنل التحكم في الحماية')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+  new SlashCommandBuilder()
+    .setName('say')
+    .setDescription('إرسال رسالة من البوت')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption((opt) => opt.setName('message').setDescription('النص').setRequired(true))
+    .addChannelOption((opt) => opt.setName('channel').setDescription('القناة (اختياري)').setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName('come')
+    .setDescription('استدعاء البوت لقناة معينة (رسالة تنبيه)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption((opt) => opt.setName('channel').setDescription('القناة المستهدفة').setRequired(false)),
 
   new SlashCommandBuilder()
     .setName('crole')
@@ -282,6 +324,36 @@ const commands = [
 
 async function executeCommand(interaction) {
   const name = interaction.commandName;
+
+  if (name === 'help') {
+    const cfg = getGuildConfig(interaction.guildId);
+    const prefix = cfg.prefix || '!';
+
+    const embed = new EmbedBuilder()
+      .setTitle('📚 ATRNS Help')
+      .setDescription('دليل سريع لأهم الأوامر (Slash + Prefix).')
+      .addFields(
+        {
+          name: '🛡️ حماية',
+          value: '`/setup-automod` `/badword-add` `/protection-panel` `/protection-status`',
+        },
+        {
+          name: '🎫 تكتات',
+          value: '`/setup-tickets` + زر `فتح تذكرة` + `/ticket-add` `/ticket-remove`',
+        },
+        {
+          name: '📢 أدوات عامة',
+          value: '`/say` `/come` `/announce` `/control-panel`',
+        },
+        {
+          name: '⌨️ Prefix',
+          value: `\`${prefix}help\` \`${prefix}ban @user reason\` \`${prefix}kick @user reason\` \`${prefix}purge 20\` \`${prefix}say نص\` \`${prefix}come\``,
+        }
+      )
+      .setColor(0x5865f2);
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
 
   if (name === 'setup-tickets') {
     const panelChannel = interaction.options.getChannel('panel_channel', true);
@@ -312,6 +384,12 @@ async function executeCommand(interaction) {
     return interaction.reply({ content: `✅ تم ضبط لوقات الحماية: ${channel}`, ephemeral: true });
   }
 
+  if (name === 'setup-owner-alerts') {
+    const enabled = interaction.options.getBoolean('enabled', true);
+    setGuildConfig(interaction.guildId, (c) => ({ ...c, ownerDmAlerts: enabled }));
+    return interaction.reply({ content: `✅ تنبيهات المالك عبر DM: ${enabled ? 'مفعلة' : 'متوقفة'}`, ephemeral: true });
+  }
+
   if (name === 'setup-suggestions') {
     const channel = interaction.options.getChannel('channel', true);
     setGuildConfig(interaction.guildId, (c) => ({ ...c, suggestionsChannelId: channel.id }));
@@ -323,7 +401,14 @@ async function executeCommand(interaction) {
     const minAccountAgeDays = interaction.options.getInteger('min_account_age_days', true);
     setGuildConfig(interaction.guildId, (c) => ({
       ...c,
-      automod: { ...(c.automod || {}), antiSpamLimit, minAccountAgeDays },
+      automod: {
+        ...(c.automod || {}),
+        antiSpamLimit,
+        minAccountAgeDays,
+        antiSpamEnabled: c.automod?.antiSpamEnabled ?? true,
+        bannedWordsEnabled: c.automod?.bannedWordsEnabled ?? true,
+        accountAgeFilterEnabled: c.automod?.accountAgeFilterEnabled ?? true,
+      },
     }));
     return interaction.reply({ content: `✅ تم تحديث Automod: spam=${antiSpamLimit}, accountAge=${minAccountAgeDays}d`, ephemeral: true });
   }
@@ -454,6 +539,26 @@ async function executeCommand(interaction) {
     return interaction.reply({ embeds: [embed] });
   }
 
+  if (name === 'levels-top') {
+    const levels = getGuildConfig(interaction.guildId).levelsData || {};
+    const top = Object.entries(levels)
+      .map(([userId, data]) => ({ userId, total: (data.chatXP || 0) + (data.voiceXP || 0), level: data.level || 0 }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    if (!top.length) {
+      return interaction.reply({ content: 'لا توجد بيانات لفلات حتى الآن.' });
+    }
+
+    const lines = top
+      .map((item, idx) => `${idx + 1}. <@${item.userId}> — Level ${item.level} (${item.total} XP)`)
+      .join('\n');
+
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle('🏆 Top Levels').setDescription(lines).setColor(0xf1c40f)],
+    });
+  }
+
   if (name === 'suggest') {
     const cfg = getGuildConfig(interaction.guildId);
     const ch = cfg.suggestionsChannelId ? interaction.guild.channels.cache.get(cfg.suggestionsChannelId) : null;
@@ -464,6 +569,80 @@ async function executeCommand(interaction) {
     await msg.react('✅').catch(() => null);
     await msg.react('❌').catch(() => null);
     return interaction.reply({ content: '✅ تم إرسال اقتراحك.', ephemeral: true });
+  }
+
+  if (name === 'suggest-panel') {
+    const cfg = getGuildConfig(interaction.guildId);
+    const ch = cfg.suggestionsChannelId ? interaction.guild.channels.cache.get(cfg.suggestionsChannelId) : interaction.channel;
+    if (!ch?.isTextBased()) return interaction.reply({ content: '❌ قناة الاقتراحات غير صالحة.', ephemeral: true });
+
+    const embed = new EmbedBuilder()
+      .setTitle('💡 Suggestion Panel')
+      .setDescription('استخدم الأمر `/suggest` لإرسال اقتراحك بشكل منظم.')
+      .setColor(0x3498db);
+
+    await ch.send({ embeds: [embed] });
+    return interaction.reply({ content: '✅ تم إرسال بنل الاقتراحات.', ephemeral: true });
+  }
+
+  if (name === 'protection-status') {
+    const cfg = getGuildConfig(interaction.guildId);
+    const automod = cfg.automod || {};
+    const bannedWords = automod.bannedWords || [];
+
+    const embed = new EmbedBuilder()
+      .setTitle('🛡️ حالة الحماية')
+      .addFields(
+        { name: 'قناة لوقات الحماية', value: cfg.securityLogsChannelId ? `<#${cfg.securityLogsChannelId}>` : 'غير مضبوطة', inline: true },
+        { name: 'تنبيهات DM للمالك', value: cfg.ownerDmAlerts === false ? 'متوقفة' : 'مفعلة', inline: true },
+        { name: 'Anti-Spam Limit', value: `${automod.antiSpamLimit || 6} رسائل/8ث`, inline: true },
+        { name: 'Min Account Age', value: `${automod.minAccountAgeDays || 0} يوم`, inline: true },
+        { name: 'عدد الكلمات المحظورة', value: `${bannedWords.length}`, inline: true },
+        { name: 'Spam', value: automod.antiSpamEnabled === false ? 'OFF' : 'ON', inline: true },
+        { name: 'Words', value: automod.bannedWordsEnabled === false ? 'OFF' : 'ON', inline: true },
+        { name: 'Age Filter', value: automod.accountAgeFilterEnabled === false ? 'OFF' : 'ON', inline: true }
+      )
+      .setColor(0xc0392b);
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (name === 'protection-panel') {
+    const cfg = getGuildConfig(interaction.guildId);
+    const automod = cfg.automod || {};
+    const embed = new EmbedBuilder()
+      .setTitle('🛡️ Protection Control Panel')
+      .setDescription('استخدم الأزرار لتفعيل/تعطيل أنظمة الحماية بسرعة.')
+      .addFields(
+        { name: 'Anti-Spam', value: automod.antiSpamEnabled === false ? 'OFF' : 'ON', inline: true },
+        { name: 'Word Filter', value: automod.bannedWordsEnabled === false ? 'OFF' : 'ON', inline: true },
+        { name: 'Account Age Filter', value: automod.accountAgeFilterEnabled === false ? 'OFF' : 'ON', inline: true }
+      )
+      .setColor(0xc0392b);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('prot:toggleSpam').setLabel('Toggle Spam').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('prot:toggleWords').setLabel('Toggle Words').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('prot:toggleAge').setLabel('Toggle Age Filter').setStyle(ButtonStyle.Primary)
+    );
+
+    await interaction.channel.send({ embeds: [embed], components: [row] });
+    return interaction.reply({ content: '✅ تم إرسال بنل الحماية.', ephemeral: true });
+  }
+
+  if (name === 'say') {
+    const text = interaction.options.getString('message', true);
+    const ch = interaction.options.getChannel('channel') || interaction.channel;
+    if (!ch?.isTextBased()) return interaction.reply({ content: '❌ قناة غير صالحة.', ephemeral: true });
+    await ch.send(text);
+    return interaction.reply({ content: '✅ تم الإرسال.', ephemeral: true });
+  }
+
+  if (name === 'come') {
+    const ch = interaction.options.getChannel('channel') || interaction.channel;
+    if (!ch?.isTextBased()) return interaction.reply({ content: '❌ قناة غير صالحة.', ephemeral: true });
+    await ch.send(`👋 أنا موجود هنا يا ${interaction.user}`);
+    return interaction.reply({ content: `✅ وصلت للقناة ${ch}.`, ephemeral: true });
   }
 
   if (name === 'crole') {

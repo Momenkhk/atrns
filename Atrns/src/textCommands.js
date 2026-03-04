@@ -1,4 +1,4 @@
-const { PermissionsBitField } = require('discord.js');
+const { PermissionsBitField, EmbedBuilder } = require('discord.js');
 const { getGuildConfig } = require('./utils/store');
 const { clearWarns, getWarns, upsertWarn } = require('./commands');
 
@@ -13,6 +13,7 @@ const DEFAULT_SHORTCUTS = {
   قفل: 'server-lock',
   فتح: 'server-unlock',
   بطيء: 'slowmode',
+  هيلب: 'help',
 };
 
 function parseDurationToMs(text) {
@@ -46,6 +47,32 @@ async function handleTextCommand(message) {
   const command = ({ ...DEFAULT_SHORTCUTS, ...(cfg.shortcuts || {}) })[raw] || raw;
   const hasPerm = (perm) => message.member.permissions.has(perm);
 
+  if (command === 'help') {
+    const embed = new EmbedBuilder()
+      .setTitle('📚 ATRNS Prefix Help')
+      .setDescription('أوامر Prefix السريعة (مع وجود Slash أيضًا).')
+      .addFields(
+        { name: 'أمثلة', value: `\`${prefix}help\` \`${prefix}ban @user reason\` \`${prefix}kick @user reason\` \`${prefix}purge 20\`` },
+        { name: 'حماية/قنوات', value: `\`${prefix}server-lock\` \`${prefix}server-unlock\` \`${prefix}slowmode 10\`` },
+        { name: 'أوامر إضافية', value: `\`${prefix}say نص\` \`${prefix}come\`` }
+      )
+      .setColor(0x5865f2);
+    await message.reply({ embeds: [embed] });
+    return true;
+  }
+
+  if (command === 'say' && hasPerm(PermissionsBitField.Flags.ManageMessages)) {
+    const text = parts.join(' ');
+    if (!text) return message.reply(`الصيغة: ${prefix}say النص`).then(() => true);
+    await message.channel.send(text);
+    return true;
+  }
+
+  if (command === 'come' && hasPerm(PermissionsBitField.Flags.ManageChannels)) {
+    await message.channel.send(`👋 أنا موجود هنا يا ${message.author}`);
+    return true;
+  }
+
   if (command === 'server-lock' && hasPerm(PermissionsBitField.Flags.ManageChannels)) {
     await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: false });
     await message.reply('🔒 تم قفل القناة عبر الاختصار.');
@@ -70,14 +97,14 @@ async function handleTextCommand(message) {
   }
   if (command === 'kick' && hasPerm(PermissionsBitField.Flags.KickMembers)) {
     const member = await resolveMember(message, parts[0]);
-    if (!member) return message.reply('الصيغة: !طرد @user السبب').then(() => true);
+    if (!member) return message.reply(`الصيغة: ${prefix}kick @user السبب`).then(() => true);
     await member.kick(parts.slice(1).join(' ') || 'بدون سبب');
     await message.reply(`👢 تم طرد ${member.user.tag}.`);
     return true;
   }
   if (command === 'ban' && hasPerm(PermissionsBitField.Flags.BanMembers)) {
     const member = await resolveMember(message, parts[0]);
-    if (!member) return message.reply('الصيغة: !بان @user 10m السبب').then(() => true);
+    if (!member) return message.reply(`الصيغة: ${prefix}ban @user 10m السبب`).then(() => true);
     const dur = parseDurationToMs(parts[1]);
     if (dur) {
       await member.timeout(dur, parts.slice(2).join(' ') || 'بدون سبب');
@@ -91,28 +118,28 @@ async function handleTextCommand(message) {
   if (command === 'timeout' && hasPerm(PermissionsBitField.Flags.ModerateMembers)) {
     const member = await resolveMember(message, parts[0]);
     const dur = parseDurationToMs(parts[1]);
-    if (!member || !dur) return message.reply('الصيغة: !تايم @user 10m السبب').then(() => true);
+    if (!member || !dur) return message.reply(`الصيغة: ${prefix}timeout @user 10m السبب`).then(() => true);
     await member.timeout(dur, parts.slice(2).join(' ') || 'بدون سبب');
     await message.reply(`⏱️ تم تايم أوت ${member.user.tag}.`);
     return true;
   }
   if (command === 'untimeout' && hasPerm(PermissionsBitField.Flags.ModerateMembers)) {
     const member = await resolveMember(message, parts[0]);
-    if (!member) return message.reply('الصيغة: !الغاءتايم @user').then(() => true);
+    if (!member) return message.reply(`الصيغة: ${prefix}untimeout @user`).then(() => true);
     await member.timeout(null);
     await message.reply(`✅ تم إلغاء التايم أوت عن ${member.user.tag}.`);
     return true;
   }
   if (command === 'warn' && hasPerm(PermissionsBitField.Flags.ModerateMembers)) {
     const member = await resolveMember(message, parts[0]);
-    if (!member) return message.reply('الصيغة: !انذار @user السبب').then(() => true);
+    if (!member) return message.reply(`الصيغة: ${prefix}warn @user السبب`).then(() => true);
     upsertWarn(message.guild.id, member.id, parts.slice(1).join(' ') || 'بدون سبب', message.author.id);
     await message.reply(`⚠️ تم إنذار ${member.user.tag}. العدد: ${getWarns(message.guild.id, member.id).length}`);
     return true;
   }
   if (command === 'clear-warns' && hasPerm(PermissionsBitField.Flags.ModerateMembers)) {
     const member = await resolveMember(message, parts[0]);
-    if (!member) return message.reply('الصيغة: !مسحالانذارات @user').then(() => true);
+    if (!member) return message.reply(`الصيغة: ${prefix}clear-warns @user`).then(() => true);
     clearWarns(message.guild.id, member.id);
     await message.reply(`✅ تم مسح إنذارات ${member.user.tag}.`);
     return true;

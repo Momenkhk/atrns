@@ -1,4 +1,3 @@
-require('dotenv').config();
 const {
   Client,
   GatewayIntentBits,
@@ -14,14 +13,11 @@ const { commands, handleTicketCreate, handleTicketClose } = require('./src/comma
 const { getGuildConfig, setGuildConfig } = require('./src/utils/store');
 const { handleTextCommand } = require('./src/textCommands');
 const { handleAutoResponse } = require('./src/autoResponses');
+const { readRuntimeConfig } = require('./src/runtimeConfig');
 
-const token = process.env.DISCORD_TOKEN;
-const clientId = process.env.DISCORD_CLIENT_ID;
-
-if (!token || !clientId) {
-  console.error('Missing DISCORD_TOKEN or DISCORD_CLIENT_ID in environment variables.');
-  process.exit(1);
-}
+const runtimeConfig = readRuntimeConfig();
+const token = runtimeConfig.bot.token;
+const clientId = runtimeConfig.bot.clientId;
 
 const spamTracker = new Map();
 const voiceIntervals = new Map();
@@ -69,7 +65,8 @@ async function sendSecurityAlert(guild, title, description) {
   if (secChannel?.isTextBased()) await secChannel.send({ embeds: [embed] }).catch(() => null);
 
   const owner = await guild.fetchOwner().catch(() => null);
-  if (owner) await owner.send({ embeds: [embed] }).catch(() => null);
+  const ownerDmAlerts = cfg.ownerDmAlerts ?? runtimeConfig?.defaults?.ownerDmAlerts ?? true;
+  if (owner && ownerDmAlerts) await owner.send({ embeds: [embed] }).catch(() => null);
 }
 
 client.once(Events.ClientReady, (c) => {
@@ -79,10 +76,11 @@ client.once(Events.ClientReady, (c) => {
 client.on(Events.GuildMemberAdd, async (member) => {
   const cfg = getGuildConfig(member.guild.id);
 
-  const minAgeDays = cfg.automod?.minAccountAgeDays || 0;
+  const ageFilterEnabled = cfg.automod?.accountAgeFilterEnabled ?? runtimeConfig?.defaults?.accountAgeFilterEnabled ?? true;
+  const minAgeDays = cfg.automod?.minAccountAgeDays ?? runtimeConfig?.defaults?.minAccountAgeDays ?? 0;
   const accountAgeMs = Date.now() - member.user.createdTimestamp;
   const minAgeMs = minAgeDays * 24 * 60 * 60 * 1000;
-  if (minAgeDays > 0 && accountAgeMs < minAgeMs) {
+  if (ageFilterEnabled && minAgeDays > 0 && accountAgeMs < minAgeMs) {
     await member.kick(`Account younger than ${minAgeDays} days`).catch(() => null);
     await sendSecurityAlert(member.guild, '🛡️ حماية ضد الحسابات الوهمية', `تم طرد ${member.user.tag} لأن عمر الحساب أقل من ${minAgeDays} يوم.`);
     return;
@@ -169,10 +167,11 @@ client.on(Events.MessageCreate, async (message) => {
   if (!message.guild || message.author.bot) return;
 
   const cfg = getGuildConfig(message.guild.id);
+  const bannedWordsEnabled = cfg.automod?.bannedWordsEnabled ?? runtimeConfig?.defaults?.bannedWordsEnabled ?? true;
   const bannedWords = cfg.automod?.bannedWords || [];
   const content = message.content.toLowerCase();
 
-  if (bannedWords.some((word) => word && content.includes(word.toLowerCase()))) {
+  if (bannedWordsEnabled && bannedWords.some((word) => word && content.includes(word.toLowerCase()))) {
     await message.delete().catch(() => null);
     await message.channel.send(`⚠️ ${message.author} تم حذف رسالتك بسبب كلمة محظورة.`).catch(() => null);
     await sendSecurityAlert(message.guild, '🛡️ فلتر كلمات', `تم حذف رسالة من ${message.author.tag} بسبب كلمة محظورة.`);
@@ -184,8 +183,9 @@ client.on(Events.MessageCreate, async (message) => {
   const history = (spamTracker.get(key) || []).filter((t) => now - t < 8000);
   history.push(now);
   spamTracker.set(key, history);
-  const limit = cfg.automod?.antiSpamLimit || 6;
-  if (history.length >= limit) {
+  const antiSpamEnabled = cfg.automod?.antiSpamEnabled ?? runtimeConfig?.defaults?.antiSpamEnabled ?? true;
+  const limit = cfg.automod?.antiSpamLimit ?? runtimeConfig?.defaults?.antiSpamLimit ?? 6;
+  if (antiSpamEnabled && history.length >= limit) {
     await message.member.timeout(2 * 60 * 1000, 'Spam protection').catch(() => null);
     await message.channel.send(`🚫 ${message.author} تم إيقافك مؤقتاً بسبب السبام.`).catch(() => null);
     await sendSecurityAlert(message.guild, '🛡️ حماية سبام', `تم تطبيق timeout على ${message.author.tag} بسبب السبام.`);
@@ -232,6 +232,34 @@ client.on(Events.InteractionCreate, async (interaction) => {
         );
         await interaction.channel.send({ embeds: [embed], components: [row] });
         await interaction.reply({ content: '✅ تم إرسال بنل التذاكر.', ephemeral: true });
+      }
+
+      if (interaction.customId === 'prot:toggleSpam') {
+        const cfg = getGuildConfig(interaction.guildId);
+        const current = cfg.automod?.antiSpamEnabled ?? true;
+        setGuildConfig(interaction.guildId, (c) => ({
+          ...c,
+          automod: { ...(c.automod || {}), antiSpamEnabled: !current },
+        }));
+        await interaction.reply({ content: `🛡️ Anti-Spam: ${!current ? 'ON' : 'OFF'}`, ephemeral: true });
+      }
+      if (interaction.customId === 'prot:toggleWords') {
+        const cfg = getGuildConfig(interaction.guildId);
+        const current = cfg.automod?.bannedWordsEnabled ?? true;
+        setGuildConfig(interaction.guildId, (c) => ({
+          ...c,
+          automod: { ...(c.automod || {}), bannedWordsEnabled: !current },
+        }));
+        await interaction.reply({ content: `🛡️ Word Filter: ${!current ? 'ON' : 'OFF'}`, ephemeral: true });
+      }
+      if (interaction.customId === 'prot:toggleAge') {
+        const cfg = getGuildConfig(interaction.guildId);
+        const current = cfg.automod?.accountAgeFilterEnabled ?? true;
+        setGuildConfig(interaction.guildId, (c) => ({
+          ...c,
+          automod: { ...(c.automod || {}), accountAgeFilterEnabled: !current },
+        }));
+        await interaction.reply({ content: `🛡️ Account Age Filter: ${!current ? 'ON' : 'OFF'}`, ephemeral: true });
       }
     }
   } catch (error) {

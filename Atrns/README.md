@@ -2,23 +2,32 @@
 
 بوت سيستم شامل وقوي لإدارة السيرفر بالكامل من خلال الأوامر + بنل تحكم.
 
+## مهم: الإعداد أصبح عبر `config.json` (بدل `.env`)
+1. انسخ `config.example.json` إلى `config.json`
+2. ضع القيم:
+   - `bot.token`
+   - `bot.clientId`
+
 ## الأنظمة المدعومة
 - ✅ الترحيب
 - ✅ اللوقات العامة
-- ✅ لوقات الحماية + تنبيهات DM للأونر
+- ✅ لوقات الحماية + تنبيهات DM للأونر (قابلة للتشغيل/الإيقاف)
+- ✅ بنل حماية للتحكم الفوري (Toggle)
 - ✅ تيكتات كاملة
-- ✅ ليفلات (شات + فويس)
+- ✅ ليفلات (شات + فويس) + توب ليفلات
 - ✅ حظر كلمات معينة + حماية ضد السبام
-- ✅ نظام اقتراحات
+- ✅ نظام اقتراحات + بنل اقتراحات
 - ✅ فلترة الحسابات الوهمية (عمر الحساب)
 - ✅ اختصارات عربية + أوامر نصية
 - ✅ ردود تلقائية (Reply أو رسالة عادية)
 - ✅ أوامر إنشاء رولات ورومات مخصصة
+- ✅ أوامر `say` و `come`
 
 ## أوامر الإعداد الأساسية
 - `/setup-welcome channel:<#channel>`
 - `/setup-logs channel:<#channel>`
 - `/setup-security channel:<#channel>`
+- `/setup-owner-alerts enabled:<true|false>`
 - `/setup-tickets panel_channel:<#channel> [category] [support_role]`
 - `/setup-suggestions channel:<#channel>`
 - `/setup-automod anti_spam_limit:<number> min_account_age_days:<number>`
@@ -29,14 +38,23 @@
 - `/badword-add word:<text>`
 - `/badword-remove word:<text>`
 - `/badword-list`
+- `/protection-status`
+- `/protection-panel`
 
 ## الاقتراحات واللفلات
 - `/suggest text:<اقتراح>`
+- `/suggest-panel`
 - `/rank [user]`
+- `/levels-top`
 
-## إنشاء رولات ورومات (مثل طلبك)
-- `/crole` : ينشئ رول مع خيارات صلاحيات أساسية.
-- `/cchannel` : ينشئ روم نصي/فويس + خيار خاص (private) + تحديد رول مسموح.
+## إنشاء رولات ورومات
+- `/crole` : ينشئ رول مع خيارات صلاحيات.
+- `/cchannel` : ينشئ روم نصي/فويس + خيار private + role/category.
+
+## أوامر إضافية
+- `/help` (دليل الأوامر)
+- `/say message:<text> [channel]`
+- `/come [channel]`
 
 ## بنل التحكم والاختصارات
 - `/control-panel`
@@ -50,9 +68,17 @@
 
 ## تشغيل البوت
 ```bash
-cp .env.example .env
 npm install
 npm start
 ```
 
 > البوت يعمل ضمن صلاحيات Discord الرسمية فقط.
+
+
+## Prefix و Slash معاً
+- كل الأنظمة الأساسية متاحة عبر Slash.
+- تمت إضافة أوامر Prefix للأوامر الشائعة + أمر هيلب:
+  - `!help`
+  - `!ban` `!kick` `!timeout` `!untimeout`
+  - `!purge` `!server-lock` `!server-unlock` `!slowmode`
+  - `!say` `!come`
