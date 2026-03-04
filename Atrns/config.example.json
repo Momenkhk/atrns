@@ -1,0 +1,14 @@
+{
+  "bot": {
+    "token": "PUT_BOT_TOKEN_HERE",
+    "clientId": "PUT_CLIENT_ID_HERE"
+  },
+  "defaults": {
+    "ownerDmAlerts": true,
+    "antiSpamLimit": 6,
+    "minAccountAgeDays": 0,
+    "antiSpamEnabled": true,
+    "bannedWordsEnabled": true,
+    "accountAgeFilterEnabled": true
+  }
+}

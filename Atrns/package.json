@@ -1,0 +1,14 @@
+{
+  "name": "atrns-discord-control-bot",
+  "version": "1.3.0",
+  "description": "Ultimate Discord server management bot with moderation, ticketing, protection panel, shortcuts and auto-responses",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js && node --check src/commands.js && node --check src/utils/store.js && node --check src/textCommands.js && node --check src/autoResponses.js && node --check src/runtimeConfig.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3"
+  }
+}
